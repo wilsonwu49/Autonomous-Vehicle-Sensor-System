@@ -71,7 +71,7 @@ def derive(a):
         print("WARNING: ADC sampling time exceeds rampEndTime. check --samples / --fs-ksps")
     return d
 
- read file
+#read file
 def load_cube(a):
     """Return complex cube shaped (frame, ADC sample, Rx, chirp)."""
     frametot = a.samples * a.chirps * a.rx          # complex samples per frame
@@ -145,8 +145,8 @@ def chirp_doppler(data_2, a, d):
         x = x - x.mean(axis=2, keepdims=True)
     wd = np.hamming(d["loops"]).astype(np.float32)               
     Y = np.fft.fftshift(np.fft.fft(x * wd[None, None, :, None], axis=2), axes=2)
-    return np.sum(np.abs(Y) ** 2, axis=1)                       # noncoherent integration. we  lose phase through this so i have to change iy latet for AoA
-# i also need to account for the  Tx>1 velocity dep phase for AoA
+    return Y
+    # i also need to account for the  Tx>1 velocity dep phase for AoA
 
 #helpers 
 def db_norm(x, global_max=None):

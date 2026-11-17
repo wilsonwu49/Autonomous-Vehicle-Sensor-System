@@ -7,6 +7,15 @@ import imageio_ffmpeg
 
 C = 299_792_458.0  # m/s
 
+# IWR6843AOP virtual array
+# positions are in units of lambda/2 = 2.5mm is a unit. checl antGeometry0/1 and antPhaseRot in demo config
+# positions 0 -11 for 12 virtual array
+# virtual antenna 0 = TX0 RX0= X[0] (1 unit left) Y[0] (1 unit down)
+# virtual antenna 1 = TX0 RX1 = X[1] (1 unit left) Y[1] (0 unit down) etc.
+X = np.array([-1, -1, 0, 0, -3, -3, -2, -2, -1, -1, 0, 0])   # azimuth index
+Y = np.array([-1, 0, 0, -1, -3, -2, -2, -3, -3, -2, -2, -3])  # elevation index
+AOP_ROT = np.array([1, -1, 1, -1, 1, -1, 1, -1, 1, -1, 1, -1])  # per-channel 180 deg flips
+
 # eventually i would just want to parse the cfg file
 def parse_args():
     p = argparse.ArgumentParser(description="Range + Dopp plots")

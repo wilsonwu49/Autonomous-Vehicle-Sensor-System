@@ -129,7 +129,6 @@ def range_fft(data, a):
     data_2 = np.fft.fft(data * wt[None, :, None, None], n=a.samples, axis=1)
     return np.moveaxis(data_2, 0, -1)
 
-
 def to_virtual(data_2, ntx, rot=AOP_ROT, cal=None):
     """
     (range, rx, chirp, frame) -> (range, virt, loop, frame), with virt = tx*nrx + rx.
@@ -146,6 +145,12 @@ def to_virtual(data_2, ntx, rot=AOP_ROT, cal=None):
     if cal is not None:
         w = w * cal
     return x * w[None, :, None, None]
+#TO DO:
+def covariance_per_range():
+    pass
+
+def steering_vector():
+    pass
 
 # velocity STUFF!!!, also hamming window, fft along chirp axis. 
 # the bigger the spaces between chrips / if we use frames, the lower our max velocity.

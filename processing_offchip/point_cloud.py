@@ -43,15 +43,6 @@ def parse_args():
                         ".RX3 etc")
     g.add_argument("--frames", type=int, default=493, help="frames to read")
     g.add_argument("--skip", type=int, default=0, help="frames to skip at the start of the file")
-
-    g = p.add_argument_group("plotting")
-    g.add_argument("--frame", type=int, default=0, help="frame shown in the static plots")
-    g.add_argument("--remove-static", action="store_true",
-                   help="subtract per-range-bin mean across chirps for dopp")
-    g.add_argument("--animate", action="store_true", help="play the frames as a video")
-    g.add_argument("--speed", type=float, default=1.0, help="playback speed, 1 = real time, ")
-    g.add_argument("--save", default=None, help="save the animation (.gif or .mp4) instead of showing it")
-    g.add_argument("--no-static", action="store_true", help="skip the static plots")
     return p.parse_args()
 
 def derive(a):
@@ -149,9 +140,8 @@ def chirp_doppler(data_2, a, d):
     """
     nk, nrx, _, nf = data_2.shape
     x = data_2.reshape(nk, nrx, d["loops"], a.tx, nf)           # [k, r, loop, t, f]
-    x = x.transpose(0, 1, 3, 2, 4).reshape(nk, nrx * a.tx, d["loops"], nf)  # [k, virt, loop, f]
-    if a.remove_static:                                         # subtract eacg range bins mean across chrips. removes statioonary object noise + DC bs
-        x = x - x.mean(axis=2, keepdims=True)
+    x = x.transpose(0, 1, 3, 2, 4).reshape(nk, nrx * a.tx, d["loops"], nf)  # [k, virt, loop, f]       
+    x = x - x.mean(axis=2, keepdims=True) # removes static # subtract eacg range bins mean across chrips. removes statioonary object noise + DC bs
     wd = np.hamming(d["loops"]).astype(np.float32)               
     Y = np.fft.fftshift(np.fft.fft(x * wd[None, None, :, None], axis=2), axes=2)
     return Y

@@ -129,14 +129,30 @@ def range_fft(data, a):
     data_2 = np.fft.fft(data * wt[None, :, None, None], n=a.samples, axis=1)
     return np.moveaxis(data_2, 0, -1)
 
+
+def to_virtual(data_2, ntx, rot=AOP_ROT, cal=None):
+    """
+    (range, rx, chirp, frame) -> (range, virt, loop, frame), with virt = tx*nrx + rx.
+    # virt is vritual antwnna, and loop is how many times each tx fired per frame(chirps in a fram /number of tx used)
+    this assumes chirp m = loop*ntx + t and that the tx order = t0 t1 t2 
+    applies the antenna phase rotation, plus an optional complex calibration vector (len = nvirt). 
+    """
+    nk, nrx, nch, nf = data_2.shape
+    loops = nch // ntx
+    x = data_2.reshape(nk, nrx, loops, ntx, nf)          # [k, r, loop, t, f]
+    x = x.transpose(0, 3, 1, 2, 4).reshape(nk, ntx * nrx, loops, nf)  # [k, t*nrx+r, loop, f]
+    # the phase application according to AOP_ROT for each virtual antenna
+    w = rot.astype(np.complex64) if rot is not None else np.ones(ntx * nrx, np.complex64)
+    if cal is not None:
+        w = w * cal
+    return x * w[None, :, None, None]
+
 # velocity STUFF!!!, also hamming window, fft along chirp axis. 
 # the bigger the spaces between chrips / if we use frames, the lower our max velocity.
 # however, a longer total integration time fives finer velocity resolution
 def chirp_doppler(data_2, a, d):
     """
-    doppler FFT along the chirp axis, per frame (range bin, Rx, chirp, frame) -> rd: (range bin, Doppler bin, frame),
-    power summed over all virtual antennas (TX x RX)!! idk if thats correct. we lose phase from this ?
-    2ith tx > 1 the chirp axis is first split into (loop, tx): chirp m = loop*tx + t.
+    doppler FFT along the chirp axis, per frame (range bin, Rx, chirp, frame) 
     """
     nk, nrx, _, nf = data_2.shape
     x = data_2.reshape(nk, nrx, d["loops"], a.tx, nf)           # [k, r, loop, t, f]

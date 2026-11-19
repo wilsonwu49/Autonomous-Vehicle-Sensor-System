@@ -29,8 +29,8 @@ def parse_args():
     g.add_argument("--start-ghz", type=float, default=60.0, help="startFreq, GHz")
     g.add_argument("--chirps", type=int, default=122,
                    help="chirps per frame")
-    g.add_argument("--rx", type=int, default=1, help="number of RX ")
-    g.add_argument("--tx", type=int, default=1, help="number of TX ")
+    g.add_argument("--rx", type=int, default=4, help="number of RX ")
+    g.add_argument("--tx", type=int, default=3, help="number of TX ")
     g.add_argument("--frame-period-ms", type=float, default=40, help="framePeriodicity, ms")
     
     g = p.add_argument_group("file layout")
@@ -190,16 +190,59 @@ def steering_vector(az_deg, el_deg, x=X, y=Y):
 
     return np.exp(1j * phase).astype(np.complex64)
 
+def capon_2d(R, az_grid, el_grid, x=X, y=Y):
+    """
+    compute 2D Capon/MVDR angular spectrum.
+ 
+    R : covar matrix
+    az_grid : azimuth grid in degrees
+    el_grid : elevation grid in degree
+    P :  Capon power spectrum, shape equal to angle-grid shape.
+    """
+    # construct steering vectors for every angle
+    A = steering_vector(az_grid, el_grid, x=x, y=y)
+    # Solve R @ Z = A, avoiding explicit matrix inverse
+    Z = np.linalg.solve(R, A)
+    # a^H R^-1 a for every direction
+    denom = np.sum(A.conj() * Z, axis=0).real
+    # \inverse capon denominator
+    P = 1.0 / np.maximum(denom, 1e-12)
+    return P.reshape(az_grid.shape)
+
+
+def plot_capon_2d(P, az_grid, el_grid, title="2D Capon Spectrum"):
+    """
+    plot normalized 2D Capon power spectrum in dB.
+    """
+    P_db = 10 * np.log10(P / P.max() + 1e-12)
+    fig, ax = plt.subplots(figsize=(9, 6))
+    im = ax.pcolormesh(
+        az_grid,
+        el_grid,
+        P_db,
+        shading="auto",
+        cmap="turbo",
+        vmin=-40,
+        vmax=0,
+    )
+    ax.set_xlabel("Azimuth (deg)")
+    ax.set_ylabel("Elevation (deg)")
+    ax.set_title(title)
+    ax.set_xlim(az_grid.min(), az_grid.max())
+    ax.set_ylim(el_grid.min(), el_grid.max())
+    cbar = fig.colorbar(im, ax=ax)
+    cbar.set_label("Normalized Capon Power (dB)")
+    plt.tight_layout()
+    plt.show()
+
 # velocity STUFF!!!, also hamming window, fft along chirp axis. 
 # the bigger the spaces between chrips / if we use frames, the lower our max velocity.
 # however, a longer total integration time fives finer velocity resolution
-def chirp_doppler(data_2, a, d):
+def chirp_doppler(data, a, d):
     """
     doppler FFT along the chirp axis, per frame (range bin, Rx, chirp, frame) 
-    """
-    nk, nrx, _, nf = data_2.shape
-    x = data_2.reshape(nk, nrx, d["loops"], a.tx, nf)           # [k, r, loop, t, f]
-    x = x.transpose(0, 1, 3, 2, 4).reshape(nk, nrx * a.tx, d["loops"], nf)  # [k, virt, loop, f]       
+    """    
+    x = to_virtual(data, a.tx, rot=AOP_ROT if a.tx * a.rx == len(AOP_ROT) else None)  
     x = x - x.mean(axis=2, keepdims=True) # removes static # subtract eacg range bins mean across chrips. removes statioonary object noise + DC bs
     wd = np.hamming(d["loops"]).astype(np.float32)               
     Y = np.fft.fftshift(np.fft.fft(x * wd[None, None, :, None], axis=2), axes=2)
@@ -214,4 +257,34 @@ def db_norm(x, global_max=None):
 def pow_db(p, ref):
     return 10 * np.log10(p / ref + 1e-12)
 
+def main():
+    a = parse_args()
+    d = derive(a)
+    cube = load_cube(a)
+    range_data = range_fft(cube, a)
+    del cube
 
+    virtual_data = to_virtual(range_data, a.tx)
+    del virtual_data
+
+    R_all = covariance_per_range(virtual_data)
+
+    #how to choose range bin to beamform?
+    range_bin = 30
+    R = R_all[range_bin]
+
+    #angular scan grid
+    az_grid_1d = np.linspace(-60, 60, 121)
+    el_grid_1d = np.linspace(-30, 30, 61)
+
+    AZ, EL = np.meshgrid(az_grid_1d, el_grid_1d)
+    P = capon_2d(R, AZ, EL)
+    plot_capon_2d(
+        P,
+        az_grid_1d,
+        el_grid_1d,
+        title=f"2D Capon — Range Bin {range_bin} ({range_bin * d['range_per_bin']:.2f} m)"
+    )
+
+if __name__ == "__main__":
+    main()

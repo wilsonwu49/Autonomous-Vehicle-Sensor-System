@@ -146,13 +146,31 @@ def to_virtual(data_2, ntx, rot=AOP_ROT, cal=None):
         w = w * cal
     return x * w[None, :, None, None]
 #TO DO:
-def covariance_per_range():
-    pass
+
+def covariance_per_range(data):
+    """
+    data = (range, virt, loop, frame) (after to_virtual)
+    calculate a spatian covariance matrix R for each range bin
+    R = E [xx^H], where x is a vector of measurements acrros all antennas"""
+    nk, nvirt, nloops, nframes = data.shape
+    # each coloumn is a snapshot for each element of the virtual array
+    X = data.reshape(nk, nvirt, nloops * nframes)
+    X = X - X.mean(axis=2, keepdims=True) # static removal -> reccomended
+
+    #sum over the snapshop index, and multiple X * X^H
+    R = np.einsum("kns,kms->knm", X, X.conj(), optimize=True)
+    R /= X.shape[2] # divide by num snapsots
+    eye = np.eye(nvirt, dtype=np.complex64) # diagonal loading ( add identity matrix with some small number to help stability poat inversion)
+    power = np.trace(R, axis1=1, axis2=2).real / nvirt
+    R += 1e-3 * power[:, None, None] * eye[None, :, :]
+    return R
 
 def steering_vector(az_deg, el_deg, x=X, y=Y):
     """
     az_deg = azimuth in degrees
     el_deg = elevation in degrees
+    # returns a steering vector for all twelve antennas 
+    # can scan over a grid using this
     """
     az = np.deg2rad(az_deg)
     el = np.deg2rad(el_deg)

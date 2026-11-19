@@ -149,8 +149,28 @@ def to_virtual(data_2, ntx, rot=AOP_ROT, cal=None):
 def covariance_per_range():
     pass
 
-def steering_vector():
-    pass
+def steering_vector(az_deg, el_deg, x=X, y=Y):
+    """
+    az_deg = azimuth in degrees
+    el_deg = elevation in degrees
+    """
+    az = np.deg2rad(az_deg)
+    el = np.deg2rad(el_deg)
+
+    # direction cosines in the array's horizontal and vertical axes
+    u = np.sin(az) * np.cos(el)
+    v = np.sin(el)
+
+    # flatten the angle grid into a list of angle pairs
+    u = np.asarray(u).ravel()
+    v = np.asarray(v).ravel()
+
+    phase = np.pi * (
+        x[:, None] * u[None, :] +
+        y[:, None] * v[None, :]
+    )
+
+    return np.exp(1j * phase).astype(np.complex64)
 
 # velocity STUFF!!!, also hamming window, fft along chirp axis. 
 # the bigger the spaces between chrips / if we use frames, the lower our max velocity.
